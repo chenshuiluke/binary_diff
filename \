@@ -1,0 +1,146 @@
+#include <stdio.h>
+#include <limits.h>
+#include <gmp.h>//For files of arbitrary size
+//#include <Python.h>
+#include <python3.4m/Python.h>
+#ifdef _WIN32
+	#include <io.h>
+#endif
+#ifndef _WIN32
+	#include <sys/stat.h>
+	#include <fcntl.h>	
+#endif
+void truncat(char fileName[], long int size)
+{
+	int fileDescriptor = 0;
+	int temp=0;
+	#ifdef _WIN32
+		temp = _open(fileName,_O_RDWR);
+		if(temp != -1)
+			fileDescriptor = temp;
+	#endif
+	#ifndef _WIN32
+		temp = 	open(fileName,O_RDWR);	
+		if(temp != -1)
+			fileDescriptor = temp;
+	#endif
+
+	PyObject * file;
+	Py_Initialize();
+	file = PyFile_FromFd(fileDescriptor,fileName,"r+b");
+	file.truncate(
+}
+void getFileSize(char file[],mpz_t * count)
+{
+	FILE * reader;
+	mpz_init(*count);
+	mpz_set_ui(*count,0);
+	unsigned char temp;
+	if((reader = fopen(file,"rb")) == NULL)
+	{
+		puts("Error opening file to get size!");
+	}
+	else
+	{
+		while(!feof(reader))
+		{
+			fread(&temp,sizeof(char), 1, reader);
+			mpz_add_ui(*count,*count,1);//Add one
+		}
+		fclose(reader);
+	}
+}
+void addToDiffFile(mpz_t pos)
+{
+	FILE * diffWriter;
+	if((diffWriter = fopen("diffs","a"))== NULL)
+	{
+		puts("Error opening difference file!");
+	}
+	else
+	{
+		mpz_out_str(diffWriter,10,pos);
+		fprintf(diffWriter,"\n");
+		fclose(diffWriter);
+	}
+}
+void isDiff(char origFile[], char otherFile[])
+{
+	int compare1 = 0;
+	int compare2 = 0;
+	fpos_t pos;
+
+	FILE * origReader;
+	FILE * otherReader;
+	unsigned char origChar;
+	unsigned char otherChar;
+
+	mpz_t counter;
+	mpz_t origSize;
+	mpz_t otherSize;
+
+	mpz_init(counter);
+	mpz_init(origSize);
+	mpz_init(otherSize);
+
+	mpz_set_ui(counter,0);
+	mpz_set_ui(origSize,0);
+	mpz_set_ui(otherSize,0);
+
+	printf("%s has ",origFile);
+	getFileSize(origFile,&origSize);
+	mpz_out_str(stdout,10,origSize);
+		
+	printf(" bytes while %s has ", otherFile);
+	getFileSize(otherFile,&otherSize);
+	mpz_out_str(stdout,10,otherSize); 
+	printf(" bytes.\n");
+	if((origReader = fopen(origFile,"r+b")) == NULL || (otherReader = fopen(otherFile,"r+b"))== NULL)
+	{
+		puts("Error opening file!");
+	}
+	else
+	{
+		while(!feof(origReader) || !feof(otherReader))
+		{
+			
+			compare1 = mpz_cmp(counter,origSize);
+//			compare2 = mpz_cmp(counter,otherSize);
+			if(!(compare1 >0 /*|| compare2> 0*/))
+			{
+				fread(&origChar,sizeof(unsigned char),1,origReader);	
+				fgetpos(otherReader,&pos);
+				fread(&otherChar,sizeof(unsigned char),1,otherReader);	
+				printf("%u\t%u\n",origChar,otherChar);
+				if(origChar!=otherChar)
+				{
+					addToDiffFile(counter);
+					fsetpos(otherReader,&pos);
+					fwrite(&origChar,sizeof(unsigned char),1,otherReader);
+
+				}
+				mpz_add_ui(counter,counter,1);
+			}
+			else
+			{
+				break;
+			}
+		}
+		fclose(origReader);
+		fclose(otherReader);
+	}
+}
+int main(int argc, char * argv[])
+{
+	remove("diffs");
+	if(argc != 3)
+	{
+		puts("Launch using the following form: ./diff file1 file2");
+	}
+	else
+	{
+		isDiff(argv[1],argv[2]);
+	}
+	return 0;
+}
+
