@@ -25,6 +25,21 @@ void mySleep(int sleepMs)
 	    Sleep(sleepMs);
 	#endif
 }
+void dumpArrs(unsigned char arr[BUFFER_SIZE], unsigned char arr1[BUFFER_SIZE])
+{
+	int counter = 0;
+	for(counter = 0; counter < BUFFER_SIZE_IND;counter++)
+	{
+		if(arr[counter] != arr1[counter])
+		{
+			printf("0x%x|0x%x", arr[counter],arr1[counter]);
+			puts("");
+			puts("");
+		}
+ 	}
+		
+
+}
 void getFileSize(char file[],mpz_t * count)
 {
 	FILE * reader;
@@ -70,7 +85,6 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 	FILE * filler;
 	mpz_t counter;
 	mpz_t difference;
-	int compare;
 	unsigned long int offset = BUFFER_SIZE;	
 	unsigned char empty[BUFFER_SIZE];
 	memset(empty,'\0',BUFFER_SIZE_IND);
@@ -105,10 +119,9 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 			else
 			{
 				mpz_add_ui(counter,counter,offset);
-				compare = mpz_cmp(counter,origSize);
 			}
 			mySleep(1);
-		}while((compare<0));
+		}while((mpz_cmp(counter,origSize)<0));
 		mpz_out_str(stdout,10,counter);
 		printf(" / ");
 		mpz_out_str(stdout,10,origSize);
@@ -118,8 +131,7 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 }
 void isDiff(char origFile[], char otherFile[],char disp[])
 {
-	int compare1 = 0;
-	unsigned long int offset = BUFFER_SIZE;	
+	volatile unsigned long int offset = BUFFER_SIZE;	
 
 	fpos_t pos;
 	FILE * origReader;
@@ -127,8 +139,8 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 	unsigned char origChar[BUFFER_SIZE];
 	unsigned char otherChar[BUFFER_SIZE];
 	
-	memset(origChar,'\0',BUFFER_SIZE_IND);
-	memset(otherChar,'\0',BUFFER_SIZE_IND);
+	memset(origChar,'\0',BUFFER_SIZE);
+	memset(otherChar,'\0',BUFFER_SIZE);
 
 	mpz_t counter;
 	mpz_t difference;
@@ -144,13 +156,11 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 	mpz_set_ui(origSize,0);
 	mpz_set_ui(otherSize,0);
 	
-	compare1 = 1;
-	while(compare1)
+	do
 	{
 		getFileSize(origFile,&origSize);
 		getFileSize(otherFile,&otherSize);
 		mpz_sub(difference,origSize,otherSize);
-		compare1 = mpz_cmp(otherSize,origSize);
 		printf("*****");
 		printf("%s has ",origFile);
 		mpz_out_str(stdout,10,origSize);
@@ -159,7 +169,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 		mpz_out_str(stdout,10,otherSize); 
 		printf(" bytes.");
 		printf("*****\n");
-		if(compare1 > 0)
+		if(mpz_cmp(otherSize,origSize) > 0)
 		{
 			puts("=====Truncating File: =====");
 			truncat(otherFile,origSize);
@@ -176,14 +186,15 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 			printf(" bytes.");
 			printf("*****\n");
 		}
-		else if(compare1 < 0)
+		else if(mpz_cmp(otherSize,origSize) < 0)
 		{
 			fill(otherFile,origSize,otherSize);
 		}
-	}
+	}while(mpz_cmp(otherSize,origSize));
 	if((origReader = fopen(origFile,"r+b")) == NULL || (otherReader = fopen(otherFile,"r+b"))== NULL)
 	{
 		puts("Error opening file!");
+		perror("Error:");
 		return;
 	}
 	else
@@ -192,20 +203,48 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 		while(mpz_cmp(counter,origSize) < 0)
 		{
 			mpz_sub(difference,origSize,counter);
-			fgetpos(otherReader,&pos);
-			if(mpz_cmp_ui(difference,BUFFER_SIZE) < 0)
+			if(fgetpos(otherReader,&pos))
+			{
+				perror("Error getting file position: ");
+			}
+			if(mpz_cmp_ui(difference,BUFFER_SIZE) <= 0)
 			{
 				offset = mpz_get_ui(difference);
+				mpz_out_str(stdout,10,difference); 
+				printf("\n");
+				mpz_out_str(stdout,10,counter); 
+				printf("\n");
 			}
 
-			fread(origChar,sizeof(unsigned char),offset,origReader);
-			fread(otherChar,sizeof(unsigned char),offset,otherReader); 
+			if(fread(origChar,sizeof(unsigned char),offset,origReader) != offset)
+			{
+				perror("Error reading! ");
+			}
+			if(fread(otherChar,sizeof(unsigned char),offset,otherReader) != offset) 
+			{
+				perror("Error reading! ");
+			}
 
 			if(memcmp(origChar,otherChar,offset))
 			{
-				fsetpos(otherReader,&pos);
-				fwrite(&origChar,sizeof(unsigned char),offset,otherReader);
+				puts("Difference found.");
+				//dumpArrs(origChar, otherChar);
+				if(fsetpos(otherReader,&pos))
+				{
+					perror("Error setting file position: ");
+				}
+				if(fsetpos(origReader,&pos))
+				{
+					perror("Error setting file position: ");
+				}
+				
+				if((fwrite(origChar,sizeof(unsigned char),offset,otherReader))!= offset)
+				{
+					perror("Error writing differences");
+				}
 			}
+			memset(origChar,'\0',BUFFER_SIZE);
+			memset(otherChar,'\0',BUFFER_SIZE);
 //				printf("%u\t%u\n",origChar,otherChar);
 			mpz_add_ui(counter,counter,offset);
 			mySleep(1);
@@ -214,7 +253,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 		printf(" / ");
 		mpz_out_str(stdout,10,origSize); 
 		puts("");
-//		printf("Offset :%lu\n",offset);
+		printf("Offset :%lu\n",offset);
 		puts("Done!");
 		fclose(origReader);
 		fclose(otherReader);
