@@ -4,12 +4,36 @@
 #include <gmp.h>//For files of arbitrary size
 #include <string.h>
 #include "pythonCode.h"
+
+#ifdef __gnu_linux__
+	#include <unistd.h>
+#endif
+#ifdef _WIN32
+	#include <windows.h>
+#endif
+
+#define BUFFER_SIZE 10000
+#define BUFFER_SIZE_IND 9999 
+
+void mySleep(int sleepMs)
+{
+	#ifdef __gnu_linux__
+	    usleep(sleepMs * 1000);   // usleep takes sleep time in us (1 millionth of a second)
+	#endif
+
+	#ifdef _WIN32
+	    Sleep(sleepMs);
+	#endif
+}
 void getFileSize(char file[],mpz_t * count)
 {
 	FILE * reader;
 	mpz_init(*count);
 	mpz_set_ui(*count,0);
-	unsigned char temp;
+	unsigned long int offset = BUFFER_SIZE;
+	unsigned int numRead =0;
+	unsigned char temp[BUFFER_SIZE];
+	memset(temp,'\0',BUFFER_SIZE_IND);	
 	if((reader = fopen(file,"rb")) == NULL)
 	{
 		puts("Error opening file to get size!");
@@ -20,11 +44,23 @@ void getFileSize(char file[],mpz_t * count)
 		printf("=====Getting file size of %s=====\n", file);
 		while(!feof(reader))
 		{
-			if(fread(&temp,sizeof(char), 1, reader) != 1)
+			numRead = fread(temp,sizeof(unsigned char),offset,reader);
+			if(numRead != offset)
 			{
-				break;
+				if(feof(reader))
+				{
+					mpz_add_ui(*count,*count,numRead);
+					break;
+				}	
+				else if(ferror(reader))
+				{
+					puts("Error occurred. Don't trust the output.");	
+					mpz_set_ui(*count,0);
+					break;
+				}
 			}
-			mpz_add_ui(*count,*count,1);//Add one
+			mpz_add_ui(*count,*count,offset);
+			mySleep(1);
 		}
 		fclose(reader);
 	}
@@ -35,9 +71,9 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 	mpz_t counter;
 	mpz_t difference;
 	int compare;
-	unsigned long int offset = 100;	
-	unsigned char empty[100];
-	memset(empty,'\0',99);
+	unsigned long int offset = BUFFER_SIZE;	
+	unsigned char empty[BUFFER_SIZE];
+	memset(empty,'\0',BUFFER_SIZE_IND);
 	fpos_t pos;
 	mpz_init(counter);
 	mpz_init(difference);
@@ -56,7 +92,7 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 		do
 		{
 			mpz_sub(difference,origSize,counter);
-			if(mpz_cmp_ui(difference,100) < 0)
+			if(mpz_cmp_ui(difference,BUFFER_SIZE) < 0)
 			{
 				offset = mpz_get_ui(difference);
 			}
@@ -71,6 +107,7 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 				mpz_add_ui(counter,counter,offset);
 				compare = mpz_cmp(counter,origSize);
 			}
+			mySleep(1);
 		}while((compare<0));
 		mpz_out_str(stdout,10,counter);
 		printf(" / ");
@@ -82,16 +119,16 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 void isDiff(char origFile[], char otherFile[],char disp[])
 {
 	int compare1 = 0;
-	unsigned long int offset = 100;	
+	unsigned long int offset = BUFFER_SIZE;	
 
 	fpos_t pos;
 	FILE * origReader;
 	FILE * otherReader;
-	unsigned char origChar[100];
-	unsigned char otherChar[100];
+	unsigned char origChar[BUFFER_SIZE];
+	unsigned char otherChar[BUFFER_SIZE];
 	
-	memset(origChar,'\0',99);
-	memset(otherChar,'\0',99);
+	memset(origChar,'\0',BUFFER_SIZE_IND);
+	memset(otherChar,'\0',BUFFER_SIZE_IND);
 
 	mpz_t counter;
 	mpz_t difference;
@@ -156,7 +193,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 		{
 			mpz_sub(difference,origSize,counter);
 			fgetpos(otherReader,&pos);
-			if(mpz_cmp_ui(difference,100) < 0)
+			if(mpz_cmp_ui(difference,BUFFER_SIZE) < 0)
 			{
 				offset = mpz_get_ui(difference);
 			}
@@ -171,6 +208,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 			}
 //				printf("%u\t%u\n",origChar,otherChar);
 			mpz_add_ui(counter,counter,offset);
+			mySleep(1);
 		}
 		mpz_out_str(stdout,10,counter); 
 		printf(" / ");
