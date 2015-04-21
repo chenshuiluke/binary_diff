@@ -25,7 +25,7 @@ void mySleep(int sleepMs)
 	    Sleep(sleepMs);
 	#endif
 }
-void dumpArrs(unsigned char arr[BUFFER_SIZE], unsigned char arr1[BUFFER_SIZE])
+void dumpArrs(unsigned char * arr, unsigned char * arr1)
 {
 	int counter = 0;
 	for(counter = 0; counter < BUFFER_SIZE_IND;counter++)
@@ -38,7 +38,7 @@ void dumpArrs(unsigned char arr[BUFFER_SIZE], unsigned char arr1[BUFFER_SIZE])
 		}
  	}
 }
-void keepWritingUntilEqual(FILE ** orig, FILE ** other, unsigned char * arr[BUFFER_SIZE], unsigned char * arr1[BUFFER_SIZE],fpos_t * origPos, fpos_t * otherPos, unsigned long int offset)
+void keepWritingUntilEqual(FILE ** orig, FILE ** other, unsigned char * arr, unsigned char * arr1,fpos_t * origPos, fpos_t * otherPos, unsigned long int offset)
 {
 
 	do
@@ -69,7 +69,16 @@ void getFileSize(char file[],mpz_t * count)
 	mpz_set_ui(*count,0);
 	unsigned long int offset = BUFFER_SIZE;
 	unsigned int numRead =0;
-	unsigned char temp[BUFFER_SIZE];
+	unsigned char * temp = NULL;
+	unsigned char * otherTemp = NULL;
+	otherTemp = calloc(BUFFER_SIZE,sizeof(unsigned char));
+
+	if(!otherTemp)
+	{
+		puts("Memory error!");
+		abort();
+	}
+	temp = otherTemp;
 	memset(temp,'\0',BUFFER_SIZE_IND);	
 	if((reader = fopen(file,"rb")) == NULL)
 	{
@@ -101,6 +110,7 @@ void getFileSize(char file[],mpz_t * count)
 		}
 		fclose(reader);
 	}
+	free(otherTemp);
 }
 void fill(char file[], mpz_t origSize, mpz_t otherSize)
 {
@@ -108,7 +118,14 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 	mpz_t counter;
 	mpz_t difference;
 	unsigned long int offset = BUFFER_SIZE;	
-	unsigned char empty[BUFFER_SIZE];
+	unsigned char * empty = NULL;
+	unsigned char * temp = calloc(BUFFER_SIZE,sizeof(unsigned char));
+	if(!temp)
+	{
+		puts("Memory error!");
+		abort();
+	}
+	empty = temp;
 	memset(empty,'\0',BUFFER_SIZE_IND);
 	fpos_t pos;
 	mpz_init(counter);
@@ -150,6 +167,7 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 		puts("");
 		fclose(filler);
 	}
+	free(temp);
 }
 void isDiff(char origFile[], char otherFile[],char disp[])
 {
@@ -160,9 +178,18 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 
 	 FILE * origReader;
 	 FILE * otherReader;
-	unsigned char origChar[BUFFER_SIZE];
-	unsigned char otherChar[BUFFER_SIZE];
+	unsigned char * origChar = NULL;
+	unsigned char * otherChar = NULL;
 	
+	unsigned char * temp = calloc(BUFFER_SIZE,sizeof(unsigned char));
+	unsigned char * temp1 = calloc(BUFFER_SIZE,sizeof(unsigned char));
+	if(!temp || !temp1)
+	{
+		puts("Memory error!");
+		abort();
+	}
+	origChar = temp;
+	otherChar = temp1;
 	memset(origChar,'\0',BUFFER_SIZE);
 	memset(otherChar,'\0',BUFFER_SIZE);
 
@@ -276,7 +303,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 					perror("Error writing differences");
 				}
 				
-				keepWritingUntilEqual(&origReader, &otherReader,&origChar,&otherChar,&origPos,&otherPos,offset);
+				keepWritingUntilEqual(&origReader, &otherReader,origChar,otherChar,&origPos,&otherPos,offset);
 			}
 //			puts("=======");
 //			puts("=======");
@@ -299,6 +326,8 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 	mpz_clear(origSize);
 	mpz_clear(otherSize);
 	mpz_clear(difference);
+	free(origChar);
+	free(otherChar);
 }
 int main(int argc, char * argv[])
 {
