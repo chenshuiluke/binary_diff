@@ -106,7 +106,7 @@ void getFileSize(char file[],mpz_t * count)
 				}
 			}
 			mpz_add_ui(*count,*count,offset);
-			mySleep(1);
+			mySleep(0);
 		}
 		fclose(reader);
 	}
@@ -159,7 +159,7 @@ void fill(char file[], mpz_t origSize, mpz_t otherSize)
 			{
 				mpz_add_ui(counter,counter,offset);
 			}
-			mySleep(1);
+			mySleep(0);
 		}while((mpz_cmp(counter,origSize)<0));
 		mpz_out_str(stdout,10,counter);
 		printf(" / ");
@@ -311,7 +311,7 @@ void isDiff(char origFile[], char otherFile[],char disp[])
 			memset(otherChar,'\0',BUFFER_SIZE);
 //				printf("%u\t%u\n",origChar,otherChar);
 			mpz_add_ui(counter,counter,offset);
-			mySleep(1);
+			mySleep(0);
 		}
 		mpz_out_str(stdout,10,counter); 
 		printf(" / ");
